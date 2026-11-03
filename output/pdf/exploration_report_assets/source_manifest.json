@@ -1,0 +1,92 @@
+{
+  "baseline_ols": {
+    "result": "analysis\\results\\baseline_ols_7ca25c4046b612101abc67b0c09b83e31f80d062274e599fa8a397604089bc69\\result.json",
+    "sha256": "c3668b281cdc2a5ad9f24e87555e8f5a82be80b0d0a39c9f71111561fe47634d",
+    "png": "analysis\\results\\baseline_ols_7ca25c4046b612101abc67b0c09b83e31f80d062274e599fa8a397604089bc69\\daily_ic.png"
+  },
+  "ols_5f_fill0": {
+    "result": "analysis\\results\\ols_5f_fill0_a0a1bb0c1ce8191cab4b196beb382892f21418e14c5bc4e84b5d92b4ced8aab6\\result.json",
+    "sha256": "ec89e07f6950ce203cd2eb08ca98bf3bdc908c5632b8ed2745e4840214299614",
+    "png": "analysis\\results\\ols_5f_fill0_a0a1bb0c1ce8191cab4b196beb382892f21418e14c5bc4e84b5d92b4ced8aab6\\daily_ic.png"
+  },
+  "ols_5f_fill0_ridge": {
+    "result": "analysis\\results\\ols_5f_fill0_ridge_97fdfff92efc63544653f806a46c66a490797a25c188c01da6f7c223ad0c1f2f\\result.json",
+    "sha256": "aa774e59fc3e50892f65e753c4bea0b65dc32d8dc8c95669ab26b0b9de369190",
+    "png": "analysis\\results\\ols_5f_fill0_ridge_97fdfff92efc63544653f806a46c66a490797a25c188c01da6f7c223ad0c1f2f\\daily_ic.png"
+  },
+  "ols_5f_fill0_lasso": {
+    "result": "analysis\\results\\ols_5f_fill0_lasso_659a1fc1c8c647414ced8161ecea70c7095b959c9103f975bb9addfb8aa55bc1\\result.json",
+    "sha256": "8a113fa7e590629f98e30f2bb85a66236ddf3b8c02ffdfea6a2cfa2dcbae3af9",
+    "png": "analysis\\results\\ols_5f_fill0_lasso_659a1fc1c8c647414ced8161ecea70c7095b959c9103f975bb9addfb8aa55bc1\\daily_ic.png"
+  },
+  "ols_ridge": {
+    "result": "analysis\\results\\ols_ridge_486e7dc3ec79581af9984243896e1e1f5ce457c1b284f51c5982a2f6a364bd59\\result.json",
+    "sha256": "a1bf098528f157b2800f3cece803702a98188aa9cc3b746da81f8feae62bde06",
+    "png": "analysis\\results\\ols_ridge_486e7dc3ec79581af9984243896e1e1f5ce457c1b284f51c5982a2f6a364bd59\\daily_ic.png"
+  },
+  "ols_lasso": {
+    "result": "analysis\\results\\ols_lasso_c54cb4c17319691e12dde8c8ddeede178651052d05aa154e4115327ba2eb722e\\result.json",
+    "sha256": "e44843116d2c88d16121bbe39162b124928bfaa22b53d312c948e78073583fc0",
+    "png": "analysis\\results\\ols_lasso_c54cb4c17319691e12dde8c8ddeede178651052d05aa154e4115327ba2eb722e\\daily_ic.png"
+  },
+  "mae_no_penalty": {
+    "result": "analysis\\results\\mae_no_penalty_a5eaf2c27c6d8eb69feb114b607b8483baeb52fd47036d1145acb7530d3078c9\\result.json",
+    "sha256": "bebcad9c931e81f48b108c33f93f4aa3cdd5f9b81fb8787dc6cca281c5039a03",
+    "png": "analysis\\results\\mae_no_penalty_a5eaf2c27c6d8eb69feb114b607b8483baeb52fd47036d1145acb7530d3078c9\\daily_ic.png"
+  },
+  "mae_no_penalty_fill0": {
+    "result": "analysis\\results\\mae_no_penalty_fill0_bf3bcc29cfdfbc3136a8594b60ecb7e4724c58cb822d90180b3b0ae601276fb5\\result.json",
+    "sha256": "57bbdc946eb1264a2c9b646cabbdbc759b8a149fe154bffe1aa39110bc82d77b",
+    "png": "analysis\\results\\mae_no_penalty_fill0_bf3bcc29cfdfbc3136a8594b60ecb7e4724c58cb822d90180b3b0ae601276fb5\\daily_ic.png"
+  },
+  "ols_3f": {
+    "result": "analysis\\results\\ols_3f_7964f34a86073bea317b769ce622f9d92f9d52fce9d8ed269d89658052fec6b6\\result.json",
+    "sha256": "00f69d64ff81c575026be457791c734c46c9519f9f7eddac5f8c5969f9876c67",
+    "png": "analysis\\results\\ols_3f_7964f34a86073bea317b769ce622f9d92f9d52fce9d8ed269d89658052fec6b6\\daily_ic.png"
+  },
+  "ols_3f_ridge": {
+    "result": "analysis\\results\\ols_3f_ridge_1a75bb661e40da9ff3bffe652966fe854761ce87d8c47efbb1f2d18465a10474\\result.json",
+    "sha256": "92a36cfa67156bcd41e7bed303ee03275c6e73fffb4fc8035174fbd397d2a395",
+    "png": "analysis\\results\\ols_3f_ridge_1a75bb661e40da9ff3bffe652966fe854761ce87d8c47efbb1f2d18465a10474\\daily_ic.png"
+  },
+  "ols_3f_lasso": {
+    "result": "analysis\\results\\ols_3f_lasso_6bae0ee8d893e2ef49aad4042b8a9f392ea7a33d4b2d7f65b9b51ec810c54de0\\result.json",
+    "sha256": "28c9058c8311568eadfcde0060279cc69a2b8f0668f4d01c049361d04001dd6a",
+    "png": "analysis\\results\\ols_3f_lasso_6bae0ee8d893e2ef49aad4042b8a9f392ea7a33d4b2d7f65b9b51ec810c54de0\\daily_ic.png"
+  },
+  "ols_daily_zscore": {
+    "result": "analysis\\results\\ols_daily_zscore_1906db6f9c88fb9db9360a7aabc052d039fcc3a9cc90eb0742b43fd0ee0ee6fa\\result.json",
+    "sha256": "ac228224b5b00a192444fa7fbea8d214df3911c0593a7fdb1c9f38d4ba88c979",
+    "png": "analysis\\results\\ols_daily_zscore_1906db6f9c88fb9db9360a7aabc052d039fcc3a9cc90eb0742b43fd0ee0ee6fa\\daily_ic.png"
+  },
+  "lasso_daily_zscore": {
+    "result": "analysis\\results\\lasso_daily_zscore_e4d445928450c583171acad39a78469a0d18bf8b0c3fd6ab457e5a3aafede55e\\result.json",
+    "sha256": "cdb12899091185216edfb5cb4962b18f12e13afaa4650f74a1d0b270c279f911",
+    "png": "analysis\\results\\lasso_daily_zscore_e4d445928450c583171acad39a78469a0d18bf8b0c3fd6ab457e5a3aafede55e\\daily_ic.png"
+  },
+  "ols_3f_zscore": {
+    "result": "analysis\\results\\ols_3f_zscore_9e5e16c5c80b414c46ee5948ddc4a431a6340611a0cb6635da2483f849b49391\\result.json",
+    "sha256": "6ab533d6931279a545a124f51cdedffd87ea9dbdd988fe322cde13b3ec829288",
+    "png": "analysis\\results\\ols_3f_zscore_9e5e16c5c80b414c46ee5948ddc4a431a6340611a0cb6635da2483f849b49391\\daily_ic.png"
+  },
+  "ols_3f_same_rows": {
+    "result": "analysis\\results\\ols_3f_same_rows_1631da188faaafe5db8191b5e4bde31285cd98aa1a8b8eefa7b7898c6826bd28\\result.json",
+    "sha256": "16e9eb9fb0ec04d826e02bce5ddeb5506ebea435d850e16973892a048195e275",
+    "png": "analysis\\results\\ols_3f_same_rows_1631da188faaafe5db8191b5e4bde31285cd98aa1a8b8eefa7b7898c6826bd28\\daily_ic.png"
+  },
+  "ols_zscore_daily_equal": {
+    "result": "analysis\\results\\ols_zscore_daily_equal_1957baa378b4ed607cc3a4aa4b3dd8d9a931462287417d805d2712244dad0768\\result.json",
+    "sha256": "1917781c0f309fc4c2eadb29e524dbe4133e2f6e2bca510d6c60015c22464f37",
+    "png": "analysis\\results\\ols_zscore_daily_equal_1957baa378b4ed607cc3a4aa4b3dd8d9a931462287417d805d2712244dad0768\\daily_ic.png"
+  },
+  "ols_zscore_daily_centered": {
+    "result": "analysis\\results\\ols_zscore_daily_centered_827c4a994accb8dfd02426ce3cb32ae8a0ee2c2df8737afceb4e76e8c6c228ad\\result.json",
+    "sha256": "e058b8886b80c843ea84ec3692b417e27643e0b2a9a863a669b157489325ac84",
+    "png": "analysis\\results\\ols_zscore_daily_centered_827c4a994accb8dfd02426ce3cb32ae8a0ee2c2df8737afceb4e76e8c6c228ad\\daily_ic.png"
+  },
+  "lhalf_no_penalty": {
+    "result": "analysis\\results\\lhalf_no_penalty_08c76d5af300d826466e954ba9e2090d51579ffed477668b14df47bb00534829\\result.json",
+    "sha256": "c9e2792f939fcea01b329aaf105476ec9e3a721eb711535e25d4eff2f52a2a94",
+    "png": "analysis\\results\\lhalf_no_penalty_08c76d5af300d826466e954ba9e2090d51579ffed477668b14df47bb00534829\\daily_ic.png"
+  }
+}

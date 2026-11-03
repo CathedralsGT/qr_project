@@ -1,0 +1,269 @@
+"""Build the exploration report from saved results; do not refit or change experiments."""
+from pathlib import Path
+import hashlib
+import json
+import shutil
+import sys
+from xml.sax.saxutils import escape
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+OUT = Path(__file__).resolve().parent
+ASSETS = OUT / "exploration_report_assets"
+ASSETS.mkdir(exist_ok=True)
+import numpy as np
+import pandas as pd
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+from matplotlib.font_manager import FontProperties
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak, Preformatted
+from pypdf import PdfReader
+
+SUMMARY = ASSETS / "summary_snapshot.csv"
+df = pd.read_csv(SUMMARY).set_index("name")
+records, series = {}, {}
+manifest = json.loads((ASSETS / "source_manifest.json").read_text(encoding="utf-8"))
+for name, row in df.iterrows():
+    record = json.loads((ASSETS / f"{name}.json").read_text(encoding="utf-8"))
+    assert all(np.isclose(record["metrics"][key], row[key], rtol=0, atol=1e-12) for key in ("mean_ic", "std_ic", "n_train", "n_eval"))
+    records[name] = record
+    series[name] = pd.Series(record["daily_ic"]["values"], index=pd.to_datetime(record["daily_ic"]["dates"])).dropna()
+
+def hac(s, lag):
+    x = s.to_numpy(); n = len(x); c = x - x.mean()
+    var = c @ c / n
+    for k in range(1, lag + 1):
+        var += 2 * (1 - k / (lag + 1)) * (c[k:] @ c[:-k]) / n
+    se = np.sqrt(var / n)
+    return {"lag": lag, "se": float(se), "t": float(x.mean()/se), "ci95": [float(x.mean()-1.96*se), float(x.mean()+1.96*se)]}
+
+stats = {}
+for name, s in series.items():
+    stats[name] = {"annual": {str(y): {"mean": float(g.mean()), "std": float(g.std()), "n": len(g)} for y,g in s.groupby(s.index.year)},
+                   "positive_fraction": float((s>0).mean()), "acf1": float(s.autocorr(1)), "hac5": hac(s,5), "hac20": hac(s,20)}
+
+# Independently audit the added training rows, using the same target boundary.
+audit_path = ASSETS / "added_rows_audit.json"
+if not audit_path.exists():
+    from analysis import config, data, splits, training_data
+    panel = data.prepare_data(config.DATA_PATH)
+    train, test = splits.split_data(panel, **{k:v for k,v in config.SPLIT_CONFIG.items() if k != "validation_start"})
+    del panel, test
+    three = training_data.prepare_training_data(train, {"target":"raw", "sample_rule":"all"}, cutoff="2019-01-01", feature_columns=config.FEATURE_COLUMNS[:3])
+    mask = training_data.make_selection_flag(three, "complete_5f", cutoff="2019-01-01")
+    extra, complete = three.loc[~mask], three.loc[mask]
+    audit = {"added_rows": len(extra), "added_dates": int(extra["日期"].nunique()), "all_fit_dates": int(three["日期"].nunique()),
+             "added_stocks": int(extra["股票代码"].nunique()), "by_year": {str(k):int(v) for k,v in extra.groupby(extra["日期"].dt.year).size().items()},
+             "missing_volatility": int(extra["二十日波动率"].isna().sum()), "missing_turnover": int(extra["换手率"].isna().sum()),
+             "complete_y_mean": float(complete.Y.mean()), "extra_y_mean": float(extra.Y.mean()),
+             "complete_y_std": float(complete.Y.std()), "extra_y_std": float(extra.Y.std()),
+             "data_size": config.DATA_PATH.stat().st_size, "data_mtime_ns": config.DATA_PATH.stat().st_mtime_ns}
+    audit_path.write_text(json.dumps(audit, ensure_ascii=False, indent=2), encoding="utf-8")
+    del train, three, extra, complete
+else:
+    audit = json.loads(audit_path.read_text(encoding="utf-8"))
+assert audit["added_rows"] == 285576
+(ASSETS / "statistics.json").write_text(json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
+(ASSETS / "source_manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+
+# A derived comparison uses the saved daily series, with labels in Chinese.
+fontpath = "C:/Windows/Fonts/simhei.ttf"
+fp = FontProperties(fname=fontpath)
+plt.rcParams.update({"font.family": fp.get_name(), "axes.unicode_minus": False, "font.size": 10})
+names = ["baseline_ols", "ols_5f_fill0", "mae_no_penalty", "mae_no_penalty_fill0"]
+labels = ["删行 OLS", "填补 OLS", "删行 MAE", "填补 MAE"]
+fig, ax = plt.subplots(figsize=(8.6,3.3), dpi=200)
+x = np.arange(4)
+for i, (year, color) in enumerate([("2019", "#123b50"), ("2020", "#0a8b85")]):
+    values = [stats[n]["annual"][year]["mean"] for n in names]
+    bars = ax.bar(x+(i-.5)*.32, values, width=.32, color=color, label=year)
+    ax.bar_label(bars, labels=[f"{v:.5f}" for v in values], fontsize=9, padding=4)
+ax.set_xticks(x, labels); ax.set_ylim(0,.032); ax.set_ylabel("年平均 Pearson IC")
+ax.legend(frameon=False, ncol=2, loc="upper right"); ax.spines[["top","right"]].set_visible(False)
+ax.grid(axis="y", alpha=.15); ax.set_axisbelow(True)
+fig.tight_layout(pad=1.2); fig.savefig(ASSETS/"annual_comparison.png", bbox_inches="tight"); plt.close(fig)
+
+pdfmetrics.registerFont(TTFont("CN", "C:/Windows/Fonts/simsun.ttc", subfontIndex=0))
+pdfmetrics.registerFont(TTFont("CNH", fontpath))
+pdfmetrics.registerFontFamily("CN", normal="CN", bold="CNH", italic="CN", boldItalic="CNH")
+NAVY = colors.HexColor("#123b50"); TEAL = colors.HexColor("#087f7b"); INK = colors.HexColor("#243845")
+MUTED = colors.HexColor("#607382"); LIGHT = colors.HexColor("#eef5f6"); RULE = colors.HexColor("#d8e2e7")
+W,H = A4; WIDTH = W-96
+styles = {
+    "body": ParagraphStyle("body", fontName="CN", fontSize=10.3, leading=16.2, textColor=INK, spaceAfter=7, wordWrap="CJK"),
+    "small": ParagraphStyle("small", fontName="CN", fontSize=8.8, leading=13, textColor=MUTED, spaceAfter=5, wordWrap="CJK"),
+    "h1": ParagraphStyle("h1", fontName="CNH", fontSize=20, leading=27, textColor=NAVY, spaceAfter=12, wordWrap="CJK"),
+    "h2": ParagraphStyle("h2", fontName="CNH", fontSize=12, leading=18, textColor=TEAL, spaceBefore=8, spaceAfter=6, wordWrap="CJK"),
+    "kicker": ParagraphStyle("kicker", fontName="CNH", fontSize=8.5, leading=13, textColor=TEAL, spaceAfter=6),
+    "cell": ParagraphStyle("cell", fontName="CN", fontSize=9.0, leading=13, textColor=INK, wordWrap="CJK"),
+    "th": ParagraphStyle("th", fontName="CNH", fontSize=9.0, leading=13, textColor=colors.white, wordWrap="CJK"),
+    "code": ParagraphStyle("code", fontName="Courier", fontSize=8.0, leading=11, textColor=INK),
+}
+story=[]; editable=[]
+def p(text, style="body"):
+    story.append(Paragraph(text, styles[style])); editable.append(text)
+def title(num, text, sub=None):
+    if story: story.append(PageBreak())
+    p(f"研究报告  /  {num:02d}", "kicker"); p(text,"h1")
+    if sub: p(sub,"small")
+def h(text): p(text,"h2")
+def callout(text):
+    t=Table([[Paragraph(text,styles["body"])]],colWidths=[WIDTH])
+    t.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),LIGHT),("BOX",(0,0),(-1,-1),.5,RULE),("LEFTPADDING",(0,0),(-1,-1),12),("RIGHTPADDING",(0,0),(-1,-1),12),("TOPPADDING",(0,0),(-1,-1),9),("BOTTOMPADDING",(0,0),(-1,-1),5)]))
+    story.extend([t,Spacer(1,9)]); editable.append(text)
+def table(headers, rows, widths, small=False):
+    cs = styles["cell"] if not small else ParagraphStyle("tiny", parent=styles["cell"], fontSize=8.2, leading=11.4)
+    content=[[Paragraph(escape(str(x)),styles["th"]) for x in headers]]+[[Paragraph(escape(str(x)),cs) for x in row] for row in rows]
+    t=Table(content,colWidths=widths,repeatRows=1,hAlign="LEFT")
+    t.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),NAVY),("VALIGN",(0,0),(-1,-1),"TOP"),("ROWBACKGROUNDS",(0,1),(-1,-1),[colors.white,colors.HexColor("#f4f7f8")]),("LINEBELOW",(0,0),(-1,0),.6,NAVY),("LINEBELOW",(0,-1),(-1,-1),.5,RULE),("LEFTPADDING",(0,0),(-1,-1),7),("RIGHTPADDING",(0,0),(-1,-1),7),("TOPPADDING",(0,0),(-1,-1),6),("BOTTOMPADDING",(0,0),(-1,-1),6)]))
+    story.extend([t,Spacer(1,8)]); editable.append(" | ".join(headers)); editable.extend(" | ".join(map(str,row)) for row in rows)
+def picture(name, caption, width=WIDTH):
+    path=ASSETS/name
+    from PIL import Image as PILImage
+    with PILImage.open(path) as img: iw,ih=img.size
+    story.append(Image(str(path),width=width,height=width*ih/iw)); p(caption,"small")
+def metric_rows(items):
+    return [[label,f"{df.loc[n,'validation_ic']:.6f}",f"{df.loc[n,'mean_ic']:.6f}",f"{df.loc[n,'std_ic']:.6f}"] for n,label in items]
+
+title(1,"五因子线性预测：训练样本与损失函数比较","JHSS_QUANT 研究报告  |  2026 年 11 月 1 日")
+h("摘要")
+p("本文在固定线性预测结构与给定数据范围内，比较正则化、训练标签变换、损失函数及训练样本处理对截面预测效果的影响，共完成 18 项实验配置。研究采用同评价股票池与同训练样本消融，识别特征选择和样本筛选的混杂影响，并通过组合实验检验改进的可叠加性。")
+callout("<b>主要发现：</b>三特征 OLS 的初始优势在固定训练样本后消失，原改善主要对应训练样本扩大。对波动率缺失的训练输入填 0 后，五特征 OLS 的测试平均 IC 从 0.012861 升至 0.018384；在该基线上，已检验的 Ridge、Lasso 与 MAE 均未取得进一步的测试均值增益。考虑逐日相关性后，正平均 IC 的统计证据仍有限。")
+h("1. 研究设定与基准定义")
+table(["项目","实验设定"],[
+ ["预测结构","预测值 = Xβ + b。输入为原始股价、成交金额、总市值、换手率、二十日波动率；沿用给定 rank zscore 处理，不引入外部数据。"],
+ ["正式标签","Y = C(t+5) / O(t+1) / 5，按题目定义，不减 1；t+1、t+5 按全市场交易日历定位。"],
+ ["训练与验证","2012-2018 年为训练期。需要验证的配置以 2018 年为内部验证期，依据验证 IC 选 alpha 后，在完整训练期重训。"],
+ ["测试口径","2019-2020 年；共同五特征完整评价池，共 1,366,724 行、482 天。逐日计算 Pearson IC，再对日期等权平均。"],
+ ["基准 B0","五特征 OLS，训练时删除所需输入或标签无效的行，最终训练样本 3,352,997 行。"],
+ ["基准 B1","五特征 OLS，仅将训练波动率缺失值填 0，最终训练样本 3,638,573 行；验证与测试池与 B0 一致。"],
+], [78,WIDTH-78])
+p("题目未指定缺失值处理方法，故显式报告 B0 与 B1 两种基准。B0 与 B1 的比较属于训练数据处理的敏感性分析；损失和正则化方法的增量效果分别在相应基准下评价。三特征模型仅用于诊断性消融，最终比较对象保持五个输入。", "small")
+h("研究设计")
+p("围绕三个问题组织实验：① Lasso 压零变量是否支持删去相应特征；② 初始三特征优势是否由训练样本变化解释；③ 缺失填补与正则化、MAE 的收益能否叠加。正文报告关键对照与结论，附录给出实现架构和完整实验表。")
+
+title(2,"2. 特征消融：分离变量数与样本构成","研究假设 H1：减少换手率与波动率输入，可改善线性预测表现。")
+p("以 B0 为起点，Ridge 的测试结果与 OLS 几乎一致。Lasso 经内部验证选取 alpha=1e-4，测试平均 IC 为 0.014484，并将换手率和二十日波动率系数压为 0。基于这一稀疏解，进一步构造只含原始股价、成交金额和总市值的 OLS，以检验减少输入的效果。")
+table(["配置","训练行数","验证 IC","测试 IC"],[
+ ["B0：五特征 OLS","3,352,997","0.041747","0.012861"],
+ ["三特征 OLS：按实际输入清洗","3,638,573","0.042243","0.015740"],
+ ["三特征 OLS：固定 B0 训练行","3,352,997","0.041071","0.012845"],
+], [183,100,108,WIDTH-391])
+h("2.1 初始观察与混杂因素")
+p("三特征 OLS 的测试平均 IC 比 B0 高 0.002879，但训练集增加了 285,576 行。原因是波动率不再作为输入，其缺失也不再触发训练删行。因此，初始比较同时改变了模型输入与训练样本，无法识别减少特征的独立效果。")
+h("2.2 同训练样本对照")
+p("新增 sample_rule=complete_5f：先按原五特征完整性筛选，再将前三列交给模型。该配置与 B0 使用相同训练股票-日期键及评价池。控制样本后，三特征测试 IC 为 0.012845，与 B0 接近且略低，验证 IC 同时下降。")
+callout("<b>结论：</b>H1 未获得同样本对照支持。三特征自然清洗版本的提升对应训练样本扩大，而非单纯删去两个输入。该结果将后续研究重点从变量删减转向训练样本保留。")
+h("2.3 特征选择对训练分布的依赖")
+table(["Lasso，alpha=1e-4","原始股价","换手率","波动率"],[
+ ["删除缺失行","-0.000016","0","0"],
+ ["训练波动率填 0","0","-0.000235","0.000136"],
+], [191,102,102,WIDTH-395])
+p("扩样本后，Lasso 保留换手率与波动率，而将原始股价系数压为 0。零系数反映给定样本、损失与惩罚下的条件选择，不足以单独证明变量不含预测信息。对特征贡献的判断应以样本一致的消融为依据。")
+
+title(3,"3. 缺失输入处理与训练样本保留","研究假设 H2：保留波动率缺失记录，可改善五特征 OLS 的估计。")
+p("B1 在标准化输入尺度上将训练波动率缺失值填为 0，其余四个输入与标签保持原值，验证和测试池不变。相对 B0，测试平均 IC 增加 0.005523，std_IC 从 0.115780 降至 0.109039；验证 IC 从 0.041747 升至 0.042311。填 0 是常数插补，不涉及历史波动率重算。")
+picture("baseline_ols.png","图 1  B0 的逐日 IC、后向 20 个观测日均值与年度均值。来源：baseline_ols 的保存结果。")
+picture("ols_5f_fill0.png","图 2  B1 的对应时间序列。来源：ols_5f_fill0 的保存结果。原图纵轴范围不同；离散程度以 std_IC 数值比较。")
+p(f"新增训练样本共 {audit['added_rows']:,} 行、{audit['added_stocks']:,} 只股票，覆盖全部 {audit['added_dates']:,} 个有效训练日，缺失均来自波动率。新增样本 Y 的标准差为 {audit['extra_y_std']:.5f}，原完整样本为 {audit['complete_y_std']:.5f}，说明保留样本同时改变了训练分布。", "small")
+p("结果支持保留缺失记录这一处理在当前评价期的相对优势，但尚不能区分样本数量与样本构成的贡献，也未验证 0 是否为最优填充值。缺失成因和新增样本的影响度仍需进一步分析。", "small")
+
+title(4,"4. 损失函数与正则化的增量效果","研究假设 H3：在 B1 上应用正则化或 MAE，可进一步改善预测。")
+table(["五特征模型","验证 IC","测试 IC","std_IC"], metric_rows([
+ ("baseline_ols","B0：删除缺失行，OLS"),("mae_no_penalty","删除缺失行，MAE"),("ols_5f_fill0","B1：训练填补，OLS"),
+ ("mae_no_penalty_fill0","训练填补，MAE"),("ols_5f_fill0_ridge","训练填补，Ridge"),("ols_5f_fill0_lasso","训练填补，Lasso")]),[175,108,108,WIDTH-391])
+h("4.1 MAE 与填补的交互")
+p("在删除缺失行的样本上，MAE 相对 OLS 的测试 IC 增益为 0.003993；扩样本后，该差值为 -0.000221，且 MAE 的 std_IC 约比 B1 高 14.2%。两种单项处理没有表现出可加的收益。平均 IC 差值较小，结果支持“未见额外优势”，而非统计意义上的显著劣化。")
+p("一种可能机制是：新增样本改变了特征与标签的关系，而 MAE 对大残差的相对权重低于 MSE，从而产生不同的系数调整。该解释尚未通过残差分组或影响度分析验证；新增样本标签方差较大本身不等于拟合残差较大。")
+h("4.2 正则化未带来测试期增益")
+p("填补 Ridge 与 Lasso 的验证最优参数分别为 0.1 和 1e-4，验证 IC 略高于 B1，测试 IC 则分别为 0.018041、0.016814，均低于 B1。结论限于已搜索网格；填补 Lasso 未覆盖 0 及小于 1e-4 的弱惩罚区域，较强惩罚候选还出现无有效 IC。")
+picture("mae_no_penalty_fill0.png","图 3  训练填补 MAE 的逐日 IC。与图 2 相比，测试均值接近，但逐日 IC 离散程度更高。")
+
+title(5,"5. 跨年表现与统计不确定性","对保存的日度 IC 进行补充诊断；不据此重新选择 alpha。")
+picture("annual_comparison.png","图 4  分年平均 IC。2019 年含 244 个有效日期，2020 年含 238 个有效日期；各年内按日期等权。")
+p("B1 在 2019、2020 年均优于 B0，年均 IC 分别为 0.025472、0.011117。填补 MAE 相对 B1 的差值在两年分别为 -0.001565、+0.001157，表明方法排序存在时期差异。2020 年各模型的绝对 IC 水平均低于 2019 年。")
+h("5.1 序列相关下的均值检验")
+p("B1 的正 IC 日期占 57.1%，IC 一阶自相关约 0.815。正式标签的未来收益窗口重叠，日度统计亦表现出明显持续性。因此，对平均 IC 的推断采用日度序列的 HAC 标准误，以 5 和 20 个交易日滞后进行敏感性检查。")
+stat_names=[("baseline_ols","B0：删行 OLS"),("ols_5f_fill0","B1：填补 OLS"),("mae_no_penalty_fill0","填补 MAE")]
+table(["模型","独立假设 t","HAC(5) t","HAC(20) t"],[
+ [label,f"{series[n].mean()/(series[n].std()/np.sqrt(len(series[n]))):.2f}",f"{stats[n]['hac5']['t']:.2f}",f"{stats[n]['hac20']['t']:.2f}"] for n,label in stat_names
+], [175,108,108,WIDTH-391])
+callout("B1 的 HAC(20) 均值 t 值为 1.55，近似 95% 置信区间为 [-0.00481, 0.04158]；HAC(5) 区间同样包含 0。评价期内的正平均 IC，尚不足以确认稳定的样本外预测能力。")
+p("采用 Newey-West / Bartlett 权重及大样本正态近似，未作小样本修正。该诊断未校正模型筛选和反复查看评价期的影响，因而作为探索性证据报告。统计证据不足不等同于确认真实信号为零。", "small")
+h("5.2 评价范围")
+p("std_IC 用于描述逐日相关的离散程度，不代表投资组合风险。本研究未包含组合构建、换手、交易成本或风险暴露分析，故结论限于截面预测指标。相对 B0 的改善与平均 IC 可靠地大于零，是两个不同的统计问题。", "small")
+
+title(6,"6. 结论与研究边界","依据控制变量实验区分数据处理效应、模型效应与统计证据。")
+h("6.1 研究结论")
+p("（1）<b>训练样本控制改变了特征选择结论。</b>三特征 OLS 的初始优势在固定训练行后消失，不能归因于删除换手率与波动率。Lasso 稀疏解在扩样本后改变，进一步说明变量选择依赖训练分布。")
+p("（2）<b>缺失记录保留是当前主要改善来源。</b>在固定评价池下，B1 的平均 IC 比 B0 高 0.005523，两个测试年份均有改善。新增记录覆盖整个训练期，且标签分布与原完整样本不同。")
+p("（3）<b>组合方法未形成进一步优势。</b>在 B1 上，已验证的 Ridge、Lasso 和 MAE 未超过其测试平均 IC；标签日标准化与按日损失也未在原完整样本上产生较大均值增益。最优记录仍为简单的五特征填补 OLS。")
+h("6.2 方法限制")
+p("缺失值处理未在题目中指定，本文将其作为基准敏感性问题单独披露，而不将预处理差异直接认定为指定改进方向上的超基线收益。相对 B1，目前尚无明确的增量改进。三特征配置仅用于分析，不作为最终五输入模型。")
+p("2019-2020 年评价结果参与了后续假设形成，因此该时期并非完全独立的最终验证集。正则化网格覆盖有限，部分标签与损失分支也未在 B1 上重验。下一阶段应固定预处理和评价池，以预先设定的滚动时间验证检验 rank 标签、低波动训练样本筛选，以及新增样本的分组贡献。")
+h("6.3 复现与辅助工具披露")
+p("项目入口：python -m analysis.analysis。实验声明见 analysis/config.py，参数说明见 analysis/manual.md；附录 A 说明实现与验证，附录 B 汇总全部 18 项结果。报告附件的 source_manifest.json 记录所引用结果路径与 SHA-256，汇总快照和逐日序列支持复算表格、年均值与 HAC 诊断。", "small")
+p("使用 Codex 辅助实现模块重构、配置接口、测试、结果核对、统计诊断及排版。本文依据保存的实验结果与可复算脚本组织论证；关于缺失机制与损失函数作用的解释均明确标为待验证假说。", "small")
+h("参考资料")
+p('[1] JHSS_QUANT远程课题1X.docx：任务定义、输入约束与正式标签。<br/>[2] analysis/results/summary.csv 及匹配的 result.json、daily_ic.png：主表与实验图来源。<br/>[3] analysis/data.py、training_data.py、models.py、config.py 与测试目录：实现与边界处理。<br/>[4] Statsmodels，<link href="https://www.statsmodels.org/stable/generated/statsmodels.stats.sandwich_covariance.cov_hac.html" color="#087f7b">cov_hac 方法文档</link>：Newey-West / Bartlett 协方差估计说明。报告采用独立公式计算均值标准误。', "small")
+
+title(7,"附录 A  实验架构与配置演进","通过统一计算接口与显式配置，保证对照实验的可比性和可复现性。")
+table(["模块","职责"],[
+ ["config.py / analysis.py","集中声明输入、时间窗口和实验；编排内部验证、最终重训与评价。"],
+ ["data.py / splits.py","在完整行情上按市场交易日键构造标签；依据验证、测试边界屏蔽跨界标签。"],
+ ["training_data.py","在当前拟合期构造目标与选择标志，再执行输入填补及清洗；不改变验证、测试股票池。"],
+ ["models.py / selection.py","数组接口求解线性模型；在统一验证窗口内选择 alpha；截距不参与惩罚。"],
+ ["metrics.py / results.py","统一以正式 Y 计算日度 IC；保存配置、系数、搜索记录、逐日结果及依赖指纹。"],
+], [145,WIDTH-145])
+h("A.1 实验需求与配置接口的对应")
+table(["实验阶段","新增或明确的配置能力"],[
+ ["基准、正则化与替代损失","分离 loss、penalty、alpha 和 solver；匹配求解器，保持共同线性预测形式。"],
+ ["统一内部验证","alphas 管理候选；单点列表 [0.0] 为固定模型补充同窗口验证，选参后完整重训。"],
+ ["特征与样本消融","feature_columns 控制模型输入，evaluation_pool 固定评价池；complete_5f 固定训练行。"],
+ ["标签变换与按日损失","target 独立于 loss；daily_wls 显式使用清洗后的日期计数，区分标签标准化与日期等权。"],
+ ["缺失填补对照","train_feature_fill 显式声明输入列及常数；只作用于训练，省略时沿用原行为。"],
+], [145,WIDTH-145])
+h("A.2 B1 的配置与数据流")
+code='''{
+    "name": "ols_5f_fill0", "sample_rule": "all",
+    "target": "raw", "loss": "mse", "penalty": "none",
+    "alpha": 0.0, "alphas": [0.0], "solver": "ols",
+    "evaluation_pool": "common_5f",
+    "train_feature_fill": {"二十日波动率": 0.0}
+}'''
+story.append(Preformatted(code,ParagraphStyle("codeCN",parent=styles["code"],fontName="CN",fontSize=9.1,leading=12.5))); editable.append(code)
+p("数据流：当前拟合期 → 屏蔽跨界标签 → 计算 Y_train → 样本筛选 → 非有限值转 NaN → 指定输入填补 → 剩余缺失清洗 → 求解。目标统计在筛选前计算；内部拟合与最终重训独立执行。", "small")
+p("加入填补接口时，93 项测试通过；14 个既有配置在同一合成面板上的系数、训练指标、逐日 IC 与选参结果逐项一致。验证重点包括共享数据不被修改、标签不被填补、截止边界有效，以及共同评价池保持不变。", "small")
+
+title(8,"附录 B  完整实验结果","18 项配置均使用 common_5f 评价池；测试行数与有效天数相同。")
+rows=[]
+for name,row in df.iterrows():
+    rows.append([name, "扩充" if int(row.n_train)==3638573 else "完整", "-" if pd.isna(row.validation_ic) else f"{row.validation_ic:.6f}",f"{row.mean_ic:.6f}",f"{row.std_ic:.6f}"])
+table(["实验名称","训练集","验证 IC","测试 IC","std_IC"],rows,[224,42,78,78,WIDTH-422],small=True)
+p("训练集“完整”指原五特征完整样本，共 3,352,997 行；“扩充”指 3,638,573 行。三特征自然清洗与五特征填补的输入数不同。ols_3f_zscore 未配置内部验证，故验证 IC 记为“-”。所有指标保留六位小数。", "small")
+h("B.1 标签与按日损失分支")
+p("daily_zscore 在每个训练日对有效标签作均值-标准差变换，目标统计先于样本筛选；daily_mse 对清洗后的日期等权，daily_centered_mse 进一步对当日输入和标签去均值。相对 B0，这些配置主要降低 std_IC，测试均值未出现较大增益。", "small")
+h("B.2 平滑残差 L0.5 分支")
+p("lhalf_no_penalty 优化 mean((r²+epsilon²)^(1/4))，epsilon=1e-4，采用 OLS 与常数中位数双初值 IRLS，并按训练平滑损失选择局部解。测试 IC 为 0.016136，低于 MAE 和 B1。该配置作用于残差，不是系数正则；未作全局最优保证。", "small")
+p("这些并行分支尚未全部在 B1 上重新检验。daily_zscore 不等同于截面 rank 标签变换；rank 标签与低波动样本筛选不包含在本阶段完成的 18 项配置中。", "small")
+
+PDF=OUT/"五因子线性模型_研究报告.pdf"
+def footer(c,doc):
+    c.setStrokeColor(RULE); c.line(48,39,W-48,39)
+    c.setFont("CN",8); c.setFillColor(MUTED)
+    c.drawString(48,26,"JHSS_QUANT  |  训练样本与损失函数比较  |  2026.11.01")
+    c.drawRightString(W-48,26,f"{doc.page:02d}")
+    c.setFillColor(TEAL); c.rect(0,H-8,W,8,stroke=0,fill=1)
+doc=SimpleDocTemplate(str(PDF),pagesize=A4,rightMargin=48,leftMargin=48,topMargin=38,bottomMargin=50,
+                      title="五因子线性预测：训练样本与损失函数比较",author="项目研究报告",pageCompression=1)
+doc.build(story,onFirstPage=footer,onLaterPages=footer)
+(OUT/"研究报告_内容稿.txt").write_text("\n\n".join(editable),encoding="utf-8")
+r=PdfReader(PDF)
+print(json.dumps({"pdf":str(PDF),"pages":len(r.pages),"bytes":PDF.stat().st_size,"experiments":len(df),"chars_by_page":[len(p.extract_text()) for p in r.pages]},ensure_ascii=False))

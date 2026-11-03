@@ -1,0 +1,28 @@
+# Local environments and Python caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Source data and original assignment (kept locally)
+/基础数据/
+/基础数据.rar
+/JHSS_QUANT远程课题1X.docx
+/项目初步计划书.md
+/output/pdf/五因子线性模型项目初步计划书.pdf
+
+# Intermediate data, scratch files, and historical backup
+*.pkl
+/tmp/
+/analysis_backup_*.py
+
+# Machine-local configuration
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

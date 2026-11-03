@@ -1,0 +1,4 @@
+# Preserve exact bytes for experiment fingerprints and report source manifests.
+* -text
+*.pdf binary
+*.png binary

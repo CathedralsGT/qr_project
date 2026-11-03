@@ -1,0 +1,13 @@
+{
+  "existing_experiments": 14,
+  "exact_match": true,
+  "checked": [
+    "metrics",
+    "coefficients",
+    "intercepts",
+    "daily_ic",
+    "alpha_search",
+    "selected_config"
+  ],
+  "dataset": "synthetic panel with missing volatility in fit, validation and test periods"
+}

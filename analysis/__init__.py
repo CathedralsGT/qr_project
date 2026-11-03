@@ -1,0 +1,16 @@
+"""五因子线性实验包；仅导出配置，导入时不读取数据或运行实验。"""
+
+from .config import (
+    ALPHA_SEARCH_OUTPUT_PATH,
+    DATA_PATH,
+    EXPERIMENTS,
+    FEATURE_COLUMNS,
+    SPLIT_CONFIG,
+    TRAIN_OUTPUT_PATH,
+    VALIDATION_START,
+)
+
+__all__ = [
+    "ALPHA_SEARCH_OUTPUT_PATH", "DATA_PATH", "EXPERIMENTS", "FEATURE_COLUMNS",
+    "SPLIT_CONFIG", "TRAIN_OUTPUT_PATH", "VALIDATION_START",
+]

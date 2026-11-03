@@ -1,0 +1,4 @@
+# Versions recorded from the working Python 3.12 environment.
+numpy==2.3.5
+pandas==3.0.1
+matplotlib==3.11.2
