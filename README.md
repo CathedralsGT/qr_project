@@ -31,7 +31,6 @@ Quantitative equity research on cross-sectional linear models, training sample s
 | 内容 | 入口 |
 | --- | --- |
 | 研究报告 | [五因子线性模型：研究报告](output/pdf/五因子线性模型_研究报告.pdf) |
-| 探索过程 | [实验探索与初步结论](output/pdf/五因子线性模型_实验探索与初步结论.pdf) |
 | 实验配置与运行说明 | [配置手册](analysis/manual.md) |
 | 模块职责与数据流 | [代码架构](analysis/README.md) |
 | 当前实验列表 | [config.py](analysis/config.py) |
@@ -65,4 +64,4 @@ CSV 需要以下列，五个特征沿用题目提供的预处理尺度：
 
 ## 文件管理
 
-保留 `analysis/` 下的代码、文档与实验结果，以及 `output/pdf/` 下的研究报告、实验探索报告、构建脚本和引用快照。`.gitignore` 排除初步计划书、原始行情、压缩包、虚拟环境、Pickle 中间数据、临时渲染图和历史单文件备份。原目录结构保留，以维持现有代码和报告引用路径。
+保留 `analysis/` 下的代码、文档与实验结果，以及 `output/pdf/` 下的最新版研究报告、构建脚本和引用快照。报告入口为 `五因子线性模型_研究报告.pdf`，对应生成脚本为 `build_interview_report.py`；`exploration_report_assets/` 保存该报告仍需使用的图表与结果快照。`.gitignore` 排除初步计划书、原始行情、压缩包、虚拟环境、Pickle 中间数据、临时渲染图和历史单文件备份。原目录结构保留，以维持现有代码和报告引用路径。
